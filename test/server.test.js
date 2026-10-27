@@ -76,6 +76,8 @@ test('serves static files, precompressed builds and health', async () => {
   assert.equal(wasm.headers.get('content-type'), 'application/wasm');
   assert.equal(wasm.headers.get('content-encoding'), 'br');
   await wasm.arrayBuffer().catch(() => {}); // body is not real brotli
+  const again = await fetch(`${base}/Build/game.wasm.br`, { headers: { 'If-None-Match': wasm.headers.get('etag') } });
+  assert.equal(again.status, 304);
 
   assert.equal((await fetch(`${base}/nope.js`)).status, 404);
   assert.equal((await fetch(`${base}/..%2f..%2fetc/passwd`)).status, 403);

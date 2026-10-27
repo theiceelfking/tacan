@@ -60,8 +60,15 @@ export function staticHandler(root) {
       name = name.slice(0, -ext.length);
     }
     headers['Content-Type'] = contentType(name);
-    // Unity puts a content hash in Build/ file names when "Name Files As Hashes" is on; index.html must stay fresh.
-    headers['Cache-Control'] = name === 'index.html' ? 'no-cache' : 'public, max-age=3600';
+    // Build/ file names stay the same between builds, so browsers (and Cloudflare) must check back each time;
+    // the ETag turns an unchanged file into a 304 with no body.
+    const etag = `"${info.size.toString(36)}-${Math.floor(info.mtimeMs).toString(36)}"`;
+    headers['Cache-Control'] = 'no-cache';
+    headers.ETag = etag;
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { ETag: etag, 'Cache-Control': 'no-cache' }).end();
+      return;
+    }
 
     res.writeHead(200, headers);
     if (req.method === 'HEAD') {
