@@ -5,3 +5,10 @@ npm-debug.log
 Dockerfile
 .dockerignore
 data
+deploy.sh
+docker-compose.yml
+Caddyfile
+.github
+.deploy.env
+deploy.log
+.git

@@ -1,4 +1,5 @@
 node_modules/
-npm-debug.log
-
 data/
+npm-debug.log
+.deploy.env
+deploy.log

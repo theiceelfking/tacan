@@ -22,15 +22,21 @@ npm start                 # http://localhost:8080
 Environment: `PORT` (8080), `PUBLIC_DIR` (`./public`), `DATA_DIR` (`./data`, accounts), `TRUST_PROXY` (`1` behind a reverse proxy), `RECONNECT_GRACE_MS` (60000, lobby seats),
 `ROOM_IDLE_MS` (600000, a started room with nobody online), `MAX_ROOMS` (1000).
 
-## Docker image
+## Deploy (Linux VM with Docker)
 
 ```sh
-npm run sync-web          # copy ../Builds/Web (Unity: Catan > Build Web) into public/
-docker build -t catan-server .
-docker run -d --name catan --restart unless-stopped -p 8080:8080 -v catan-data:/data catan-server
+git clone https://github.com/theiceelfking/tacan.git && cd tacan
+./deploy.sh                              # http://<vm-ip>:8080
+DOMAIN=catan.example.com ./deploy.sh     # https via Caddy (DNS -> this VM, ports 80/443 open)
+./deploy.sh --install-cron               # redeploy weekly with patched images
 ```
 
-Accounts are kept in `/data/accounts.json`: keep the `-v catan-data:/data` volume, or every rebuild forgets them.
+`deploy.sh` pulls, rebuilds on the newest `node:22-alpine`, runs `npm audit` (and `trivy` if installed), then
+starts `docker-compose.yml`: read-only filesystem, no Linux capabilities, `no-new-privileges`, memory and
+process limits, running as `node`. npm is built in a separate stage and removed from the final image.
+Accounts live in the `catan-data` volume. Dependabot (`.github/dependabot.yml`) opens PRs for `ws` and the base image.
+
+To update the web build: Unity `Catan > Build Web`, then `npm run sync-web` from the original project layout.
 
 If it sits behind a reverse proxy (nginx, Caddy, a cloud load balancer), the proxy must pass WebSocket
 upgrades on `/ws`. Pages served over https need `wss://`.

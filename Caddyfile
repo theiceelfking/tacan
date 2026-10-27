@@ -1,0 +1,13 @@
+# https in front of the game: Caddy fetches and renews the certificate for $DOMAIN by itself.
+# The domain's DNS must point at this machine, and ports 80 + 443 must be open.
+{$DOMAIN} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+	# WebSocket upgrades on /ws pass through as they are.
+	reverse_proxy catan:8080
+}

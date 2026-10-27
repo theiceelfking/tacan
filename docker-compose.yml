@@ -1,0 +1,59 @@
+# Used by deploy.sh. By hand: docker compose up -d --build   (add --profile https with DOMAIN set for Caddy)
+services:
+  catan:
+    build: .
+    image: catan-server
+    container_name: catan
+    restart: unless-stopped
+    ports:
+      # With Caddy in front (https) the game port is only reachable from this machine.
+      - "${BIND:-0.0.0.0}:${PORT:-8080}:8080"
+    environment:
+      TRUST_PROXY: "${TRUST_PROXY:-0}"
+    volumes:
+      - catan-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    pids_limit: 200
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  caddy:
+    profiles: [https]
+    image: caddy:2-alpine
+    container_name: catan-caddy
+    restart: unless-stopped
+    depends_on: [catan]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: "${DOMAIN:-}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  catan-data:
+    name: catan-data   # same volume as the plain "docker run -v catan-data:/data": accounts carry over
+  caddy-data:
+  caddy-config:
