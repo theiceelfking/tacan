@@ -3,7 +3,11 @@
 #
 #   ./deploy.sh                          http on port 8080
 #   DOMAIN=catan.example.com ./deploy.sh https through Caddy (ports 80/443; the game port stays local)
-#   ./deploy.sh --install-cron           also redeploy every Monday 04:17 (pulls code and patched images)
+#   PORT=9080 ./deploy.sh                another port (remembered for later runs)
+#   PORT=9080 BIND=127.0.0.1 TRUST_PROXY=1 ./deploy.sh
+#                                        behind Cloudflare Tunnel on this machine: game port local only,
+#                                        real player addresses from X-Forwarded-For
+#   ./deploy.sh --install-cron          also redeploy every Monday 04:17 (pulls code and patched images)
 #   ./deploy.sh --no-pull                deploy what is checked out, without git pull
 #
 # Each run: git pull, rebuild on the newest node:22-alpine (--pull), check for known vulnerabilities, restart
@@ -22,7 +26,7 @@ for arg in "$@"; do
   case "$arg" in
     --no-pull) PULL=0 ;;
     --install-cron) CRON=1 ;;
-    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -33,22 +37,28 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 # ---------------------------------------------------------------- settings (command line wins over .deploy.env)
 CLI_DOMAIN=${DOMAIN-__unset__}
 CLI_PORT=${PORT-__unset__}
+CLI_BIND=${BIND-__unset__}
+CLI_TRUST=${TRUST_PROXY-__unset__}
+DOMAIN='' PORT='' BIND='' TRUST_PROXY=''
 [ -f "$ENV_FILE" ] && . "$ENV_FILE"
 [ "$CLI_DOMAIN" != __unset__ ] && DOMAIN=$CLI_DOMAIN
 [ "$CLI_PORT" != __unset__ ] && PORT=$CLI_PORT
-DOMAIN=${DOMAIN:-}
+[ "$CLI_BIND" != __unset__ ] && BIND=$CLI_BIND
+[ "$CLI_TRUST" != __unset__ ] && TRUST_PROXY=$CLI_TRUST
 PORT=${PORT:-8080}
-printf 'DOMAIN=%s\nPORT=%s\n' "$DOMAIN" "$PORT" > "$ENV_FILE"
+printf 'DOMAIN=%s\nPORT=%s\nBIND=%s\nTRUST_PROXY=%s\n' "$DOMAIN" "$PORT" "$BIND" "$TRUST_PROXY" > "$ENV_FILE"
 
 if [ -n "$DOMAIN" ]; then
-  export BIND=127.0.0.1 TRUST_PROXY=1 DOMAIN PORT
+  BIND=${BIND:-127.0.0.1} TRUST_PROXY=${TRUST_PROXY:-1}
   PROFILE="--profile https"
   URL="https://$DOMAIN"
 else
-  export BIND=0.0.0.0 TRUST_PROXY=0 DOMAIN PORT
+  BIND=${BIND:-0.0.0.0} TRUST_PROXY=${TRUST_PROXY:-0}
   PROFILE=""
-  URL="http://<ip-may-ao>:$PORT"
+  URL="http://$([ "$BIND" = 0.0.0.0 ] && echo '<ip-may-ao>' || echo "$BIND"):$PORT"
 fi
+export DOMAIN PORT BIND TRUST_PROXY
+echo "port $BIND:$PORT, https via Caddy: ${DOMAIN:-no}, trust proxy: $TRUST_PROXY"
 
 # ---------------------------------------------------------------- tools
 command -v docker >/dev/null || die "docker is not installed (https://docs.docker.com/engine/install/)"
