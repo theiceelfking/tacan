@@ -4,3 +4,4 @@ scripts
 npm-debug.log
 Dockerfile
 .dockerignore
+data

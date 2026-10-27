@@ -19,7 +19,7 @@ npm test
 npm start                 # http://localhost:8080
 ```
 
-Environment: `PORT` (8080), `PUBLIC_DIR` (`./public`), `RECONNECT_GRACE_MS` (60000, lobby seats),
+Environment: `PORT` (8080), `PUBLIC_DIR` (`./public`), `DATA_DIR` (`./data`, accounts), `TRUST_PROXY` (`1` behind a reverse proxy), `RECONNECT_GRACE_MS` (60000, lobby seats),
 `ROOM_IDLE_MS` (600000, a started room with nobody online), `MAX_ROOMS` (1000).
 
 ## Docker image
@@ -27,11 +27,27 @@ Environment: `PORT` (8080), `PUBLIC_DIR` (`./public`), `RECONNECT_GRACE_MS` (600
 ```sh
 npm run sync-web          # copy ../Builds/Web (Unity: Catan > Build Web) into public/
 docker build -t catan-server .
-docker run -p 8080:8080 catan-server
+docker run -d --name catan --restart unless-stopped -p 8080:8080 -v catan-data:/data catan-server
 ```
+
+Accounts are kept in `/data/accounts.json`: keep the `-v catan-data:/data` volume, or every rebuild forgets them.
 
 If it sits behind a reverse proxy (nginx, Caddy, a cloud load balancer), the proxy must pass WebSocket
 upgrades on `/ws`. Pages served over https need `wss://`.
+
+## Accounts
+
+Online play needs an account (name + password); the name at the table is the account name.
+
+- Passwords: scrypt with a salt per user. Sessions: a random 256-bit token; the file stores only its SHA-256.
+  Sessions last 30 days, at most 10 per account, and end on logout.
+- Failed logins: 10 per client address per 10 minutes, then refused. Behind a reverse proxy set `TRUST_PROXY=1`,
+  otherwise every player looks like the proxy's address (and only then: the header is easy to fake).
+- A seat in a room belongs to the account that took it: someone else holding the seat token cannot take it.
+- Use https (`wss://`) on the internet: over plain http the password crosses the network readable.
+
+Keeping Node itself patched is separate from logins: rebuild now and then with `docker build --pull` (newer
+`node:22-alpine`) and check `npm audit`. The image runs as the `node` user, not root.
 
 ## Game side (Unity)
 
@@ -55,9 +71,12 @@ Client → server
 
 | message | who | meaning |
 |---|---|---|
-| `{t:"create", name}` | anyone | open a room, become host (seat 0) |
-| `{t:"join", room, name}` | anyone | take the first free seat (1–3); refused once the game started |
-| `{t:"rejoin", room, token}` | anyone | take your seat back (after a drop, or after leaving a started game) |
+| `{t:"register", name, password}` | anyone | new account → `authed` |
+| `{t:"login", name, password}` | anyone | → `{t:"authed", name, session}` |
+| `{t:"logout", session}` | anyone | end that session → `loggedout` |
+| `{t:"create", session}` | logged in | open a room, become host (seat 0) |
+| `{t:"join", room, session}` | logged in | take the first free seat (1–3); refused once the game started |
+| `{t:"rejoin", room, token, session}` | same account | take your seat back (after a drop, or after leaving a started game) |
 | `{t:"start"}` | host | lock the room (no new joins) |
 | `{t:"save", data}` | host | the full game, handed to the next host |
 | `{t:"kick", seat}` | host | free a seat (before the start) |

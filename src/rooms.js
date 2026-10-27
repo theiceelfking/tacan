@@ -63,7 +63,10 @@ export class Lobby {
     if (conn.room) throw new RoomError('already_in_room', 'Đã ở trong một phòng');
     const room = this.#find(code);
     const seat = typeof token === 'string' ? room.seats.findIndex((s) => s && s.token === token) : -1;
-    if (seat < 0) throw new RoomError('bad_token', 'Không thể vào lại chỗ cũ');
+    // the seat token only works for the account that sat there
+    if (seat < 0 || (room.seats[seat].user && room.seats[seat].user !== conn.user)) {
+      throw new RoomError('bad_token', 'Không thể vào lại chỗ cũ');
+    }
     const s = room.seats[seat];
     if (s.conn) this.#detach(s.conn, 'replaced'); // the same player on a fresh socket wins
     clearTimeout(s.graceTimer);
@@ -162,7 +165,7 @@ export class Lobby {
   // ------------------------------------------------------------------ internals
 
   #seat(room, seat, conn, name) {
-    room.seats[seat] = { name: cleanName(name, seat), token: randomBytes(16).toString('hex'), conn, graceTimer: null };
+    room.seats[seat] = { name: cleanName(name, seat), user: conn.user ?? null, token: randomBytes(16).toString('hex'), conn, graceTimer: null };
     conn.room = room;
     conn.seat = seat;
     this.#online(room);
