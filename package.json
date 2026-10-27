@@ -1,0 +1,19 @@
+﻿{
+  "name": "catan-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Room + relay server for online Catan: serves the Unity WebGL build and relays messages over WebSocket",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js",
+    "sync-web": "node scripts/sync-web.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
